@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-guild-darker text-gray-100;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-guild-dark;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-guild-primary rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-guild-secondary;
+}
+
+/* Animation utilities */
+@keyframes slideInFromLeft {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInFromLeft 0.3s ease-out;
+}
+
+/* Custom markdown styles */
+.prose {
+  @apply max-w-none text-gray-200;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  @apply text-gray-100 font-bold;
+}
+
+.prose a {
+  @apply text-guild-primary hover:text-guild-secondary underline;
+}
+
+.prose code {
+  @apply bg-guild-dark px-1 py-0.5 rounded text-sm;
+}
+
+.prose pre {
+  @apply bg-guild-dark p-4 rounded-lg overflow-x-auto;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-guild-primary pl-4 italic;
+}
