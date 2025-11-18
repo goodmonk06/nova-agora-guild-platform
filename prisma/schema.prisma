@@ -10,6 +10,9 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+// Seed configuration
+// Run: npm run db:seed
+
 // NextAuth.js Models
 // https://next-auth.js.org/adapters/models
 
@@ -60,17 +63,25 @@ model User {
     website       String?
     twitter       String?
     totalPoints   Int       @default(0)
+    // PHASE 3: User preferences (notification settings, UI prefs, etc.)
+    preferences   Json?
+    // PHASE 3: Last activity timestamp
+    lastActiveAt  DateTime?
     createdAt     DateTime  @default(now())
     updatedAt     DateTime  @updatedAt
 
-    accounts         Account[]
-    sessions         Session[]
-    memberships      Membership[]
-    posts            Post[]
-    reactions        Reaction[]
-    questSubmissions QuestSubmission[]
-    createdGuilds    Guild[]           @relation("GuildCreator")
-    createdQuests    Quest[]           @relation("QuestCreator")
+    accounts          Account[]
+    sessions          Session[]
+    memberships       Membership[]
+    posts             Post[]
+    reactions         Reaction[]
+    questSubmissions  QuestSubmission[]
+    createdGuilds     Guild[]           @relation("GuildCreator")
+    createdQuests     Quest[]           @relation("QuestCreator")
+    // PHASE 3: New relations
+    notifications     Notification[]
+    activities        Activity[]
+    sentNotifications Notification[]    @relation("NotificationActor")
 }
 
 enum MemberRole {
@@ -87,15 +98,21 @@ model Guild {
     image       String?
     inviteCode  String   @unique @default(cuid())
     isPublic    Boolean  @default(false)
+    // PHASE 3: Guild settings (theme, enabled features, custom fields, etc.)
+    settings    Json?
     createdAt   DateTime @default(now())
     updatedAt   DateTime @updatedAt
     creatorId   String
 
-    creator     User         @relation("GuildCreator", fields: [creatorId], references: [id])
-    memberships Membership[]
-    channels    Channel[]
-    quests      Quest[]
-    posts       Post[]       @relation("GuildPosts")
+    creator      User           @relation("GuildCreator", fields: [creatorId], references: [id])
+    memberships  Membership[]
+    channels     Channel[]
+    quests       Quest[]
+    posts        Post[]         @relation("GuildPosts")
+    // PHASE 3: New relations
+    activities   Activity[]
+    integrations Integration[]
+    metrics      GuildMetric[]
 
     @@index([slug])
     @@index([inviteCode])
@@ -113,6 +130,8 @@ model Membership {
     // 自己紹介カード用フィールド
     intro     String?    @db.Text
     expertise String[]   @default([])
+    // PHASE 3: Activity tracking
+    lastActiveAt DateTime?
 
     user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
     guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -120,6 +139,7 @@ model Membership {
     @@unique([userId, guildId])
     @@index([guildId])
     @@index([userId])
+    @@index([lastActiveAt])
 }
 
 model Channel {
@@ -151,8 +171,10 @@ model Thread {
     updatedAt DateTime @updatedAt
     channelId String
 
-    channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-    posts   Post[]
+    channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+    posts       Post[]
+    // PHASE 3: Tagging support
+    tagRelations TagRelation[]
 
     @@unique([channelId, slug])
     @@index([channelId])
@@ -170,11 +192,15 @@ model Post {
     guildId   String?
     // AI生成のハイライト投稿かどうか
     isAiHighlight Boolean @default(false)
+    // PHASE 3: Rich content metadata (polls, attachments, embeds, etc.)
+    metadata  Json?
 
-    author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-    thread    Thread?    @relation(fields: [threadId], references: [id], onDelete: Cascade)
-    guild     Guild?     @relation("GuildPosts", fields: [guildId], references: [id], onDelete: Cascade)
-    reactions Reaction[]
+    author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+    thread       Thread?       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+    guild        Guild?        @relation("GuildPosts", fields: [guildId], references: [id], onDelete: Cascade)
+    reactions    Reaction[]
+    // PHASE 3: Tagging support
+    tagRelations TagRelation[]
 
     @@index([authorId])
     @@index([threadId])
@@ -220,18 +246,23 @@ model Quest {
     points      Int         @default(0)
     status      QuestStatus @default(DRAFT)
     deadline    DateTime?
+    // PHASE 3: Quest templates for reuse
+    isTemplate  Boolean     @default(false)
     createdAt   DateTime    @default(now())
     updatedAt   DateTime    @updatedAt
     guildId     String
     creatorId   String
 
-    guild       Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
-    creator     User              @relation("QuestCreator", fields: [creatorId], references: [id])
-    submissions QuestSubmission[]
+    guild        Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+    creator      User              @relation("QuestCreator", fields: [creatorId], references: [id])
+    submissions  QuestSubmission[]
+    // PHASE 3: Tagging support
+    tagRelations TagRelation[]
 
     @@index([guildId])
     @@index([status])
     @@index([deadline])
+    @@index([isTemplate])
 }
 
 enum SubmissionStatus {
@@ -242,15 +273,15 @@ enum SubmissionStatus {
 }
 
 model QuestSubmission {
-    id          String           @id @default(cuid())
-    content     String           @db.Text
-    status      SubmissionStatus @default(PENDING)
-    feedback    String?          @db.Text
+    id            String           @id @default(cuid())
+    content       String           @db.Text
+    status        SubmissionStatus @default(PENDING)
+    feedback      String?          @db.Text
     pointsAwarded Int?
-    submittedAt DateTime         @default(now())
-    reviewedAt  DateTime?
-    userId      String
-    questId     String
+    submittedAt   DateTime         @default(now())
+    reviewedAt    DateTime?
+    userId        String
+    questId       String
 
     user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
     quest Quest @relation(fields: [questId], references: [id], onDelete: Cascade)
@@ -259,4 +290,165 @@ model QuestSubmission {
     @@index([questId])
     @@index([userId])
     @@index([status])
+}
+
+// ============================================================================
+// PHASE 3: NEW ENTITIES
+// ============================================================================
+
+enum NotificationType {
+    MENTION
+    REPLY
+    REACTION
+    QUEST_ASSIGNED
+    QUEST_APPROVED
+    QUEST_REJECTED
+    MEMBER_JOINED
+    SYSTEM_ALERT
+}
+
+model Notification {
+    id        String           @id @default(cuid())
+    type      NotificationType
+    title     String
+    message   String           @db.Text
+    isRead    Boolean          @default(false)
+    // Link to relevant resource (post, quest, etc.)
+    resourceType String?
+    resourceId   String?
+    // Contextual data
+    data      Json?
+    createdAt DateTime         @default(now())
+    // Recipient
+    userId    String
+    // Actor who triggered the notification (optional)
+    actorId   String?
+
+    user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+    @@index([userId, isRead])
+    @@index([createdAt])
+}
+
+enum ActivityType {
+    GUILD_CREATED
+    GUILD_JOINED
+    POST_CREATED
+    THREAD_CREATED
+    QUEST_CREATED
+    QUEST_SUBMITTED
+    QUEST_COMPLETED
+    REACTION_ADDED
+    MEMBER_PROMOTED
+}
+
+model Activity {
+    id           String       @id @default(cuid())
+    type         ActivityType
+    description  String
+    // Link to relevant resource
+    resourceType String?
+    resourceId   String?
+    // Contextual data
+    metadata     Json?
+    createdAt    DateTime     @default(now())
+    // Actor (the user who performed the action)
+    userId       String
+    // Guild context (if applicable)
+    guildId      String?
+
+    user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([guildId])
+    @@index([createdAt])
+    @@index([type])
+}
+
+model Tag {
+    id          String   @id @default(cuid())
+    name        String
+    slug        String   @unique
+    description String?
+    color       String?  @default("#6366f1")
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    tagRelations TagRelation[]
+
+    @@index([slug])
+}
+
+model TagRelation {
+    id           String   @id @default(cuid())
+    tagId        String
+    // Polymorphic relation
+    resourceType String // "post", "thread", "quest"
+    resourceId   String
+    createdAt    DateTime @default(now())
+
+    tag    Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+    post   Post?   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+    thread Thread? @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+    quest  Quest?  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+    @@unique([tagId, resourceType, resourceId])
+    @@index([resourceType, resourceId])
+    @@index([tagId])
+}
+
+enum IntegrationType {
+    DISCORD_WEBHOOK
+    SLACK_WEBHOOK
+    ZAPIER
+    CUSTOM_WEBHOOK
+}
+
+model Integration {
+    id            String          @id @default(cuid())
+    type          IntegrationType
+    name          String
+    isEnabled     Boolean         @default(true)
+    // Integration-specific config (webhook URL, API keys, etc.)
+    config        Json
+    // Event filters (which events trigger this integration)
+    eventFilters  String[]        @default([])
+    createdAt     DateTime        @default(now())
+    updatedAt     DateTime        @updatedAt
+    guildId       String
+
+    guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+    @@index([guildId])
+    @@index([isEnabled])
+}
+
+model GuildMetric {
+    id                 String   @id @default(cuid())
+    date               DateTime @db.Date
+    // Member metrics
+    totalMembers       Int      @default(0)
+    activeMembers      Int      @default(0)
+    newMembers         Int      @default(0)
+    // Content metrics
+    postsCreated       Int      @default(0)
+    threadsCreated     Int      @default(0)
+    reactionsGiven     Int      @default(0)
+    // Quest metrics
+    questsCompleted    Int      @default(0)
+    questsCreated      Int      @default(0)
+    pointsAwarded      Int      @default(0)
+    // Engagement score (0-100)
+    engagementScore    Float    @default(0)
+    // Additional metadata
+    metadata           Json?
+    guildId            String
+
+    guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+    @@unique([guildId, date])
+    @@index([guildId])
+    @@index([date])
 }
